@@ -1,0 +1,4 @@
+/target
+.env
+duration.json
+genre.json
