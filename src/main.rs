@@ -1,35 +1,28 @@
+use std::{error::Error, fs};
+use serde_json::json;
+use chrono::{TimeZone, Utc};
 pub mod lfm;
 pub mod calculations;
 pub mod spotify;
-use chrono::{Month, TimeZone, Utc};
-use log::info;
-use env_logger;
-//use std::time::{SystemTime, UNIX_EPOCH};
+pub mod imageprocessing;
 
 #[tokio::main]
-async fn main() {
-    env_logger::init();
-    let client = lfm::init_client("redoverflow");
-    info!("last.fm client init");
-    let spotify = spotify::auth().await;
-    info!("spotify client init");
-    //let scrobbles = lfm::get_scrobble_count(client.clone()).await;
-    //println!("scrobbles: {}", scrobbles);
-    //let to = i64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()).unwrap();
-    //let from = i64::try_from(to - 365 * 24 * 60 * 60).unwrap();
-    //let from = i64::try_from(to - 24 * 60 * 60).unwrap();
-    //let total_minutes = calculations::calculate_total_minutes(client.clone(), spotify, from, to).await;
-    //println!("{}", total_minutes);
-    //spotify::find_song(spotify, "car seat headrest - sober to death".to_string()).await;
-    //let total = calculations::calculate_year(client, spotify).await;
-    //println!("each month: {:?}\n total: {}", total, total.iter().sum::<i32>());
-    //let largest = calculations::largest_value_hashmap(total);
-    //println!("busiest day: {} (seconds: {} ({}m))", Utc.timestamp_opt(largest[0], 0).unwrap().to_rfc2822(), largest[1] / 1000, (largest[1] / 1000) / 60);
-    //let tracks = lfm::fetch_top_5_tracks(&"redoverflow".to_string()).await;
-    //println!("{:?}", tracks);
-    let genres = calculations::calculate_genre_months(client, spotify).await.unwrap();
-    //println!("{:?}", genres);
-    for i in 0..4 {
-        println!("{}: {:?}", Month::try_from(i*3).unwrap_or(Month::January).name(), genres.get(i as usize));
+async fn main() -> Result<(), Box<dyn Error>>{
+    let lfm_client = lfm::init_client("redoverflow");
+    let spotify_client = spotify::auth().await;
+    let total = calculations::calculate_year(lfm_client, spotify_client).await;
+    //println!("each month: {:?}\n total: {}", total, total.iter().sum::<i64>());
+    let largest = calculations::largest_value_hashmap(&total);
+    println!("busiest day: {} (seconds: {} ({}m))", Utc.timestamp_opt(largest[0], 0).unwrap().to_rfc2822(), largest[1] / 1000, (largest[1] / 1000) / 60);
+    let mut total_time: i64 = 0;
+    for i in total.values() {
+        total_time += i;
     }
+    println!("total: {}s ({}m)", total_time / 1000, (total_time / 1000) / 60);
+    //let total_value = json!(total);
+    //let total_str = serde_json::to_string_pretty(&total_value).unwrap_or("".to_string());
+    //let _ = fs::write("total.json", total_str);
+    let tm_img = imageprocessing::minutes_listened(((total_time / 1000) / 60).to_string())?;
+    tm_img.save("meow.png")?;
+    Ok(())
 }

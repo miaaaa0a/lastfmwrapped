@@ -1,4 +1,6 @@
 /target
+/fonts
 .env
 duration.json
 genre.json
+meow.png

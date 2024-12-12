@@ -4,10 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+ab_glyph = "0.2.29"
 chrono = { version = "0.4.38", features = ["clock"] }
 dotenvy = "0.15.7"
 env_logger = "0.11.5"
 futures-util = "0.3.31"
+image = "0.25.5"
+imageproc = "0.25.0"
 lastfm = "0.10.0"
 log = "0.4.22"
 reqwest = "0.12.9"

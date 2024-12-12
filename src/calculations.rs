@@ -5,7 +5,7 @@ use std::{collections::HashMap, error::Error, fs};
 use futures_util::pin_mut;
 use futures_util::stream::StreamExt;
 use serde_json::{json, Value};
-use chrono::{Datelike, Days, Local, Months};
+use chrono::{Datelike, Local, Months, TimeZone, Utc};
 use tqdm::tqdm;
 
 enum CacheType {
@@ -39,9 +39,9 @@ fn save_cache(cache: Value, ctype: CacheType) {
     }
 }
 
-pub fn largest_value_hashmap(hm: HashMap<i64, i64>) -> Vec<i64> {
+pub fn largest_value_hashmap(hm: &HashMap<i64, i64>) -> Vec<i64> {
     let mut largest = 0;
-    for (i, j) in &hm {
+    for (i, j) in hm {
         if *j > largest {
             largest = *i;
         }
@@ -92,7 +92,7 @@ async fn calculate_scrobble_time(lfm_client: Client<String, &str>, spotify_clien
         match i {
             Ok(t) => {
                 let track_name = format!("{} - {}", t.artist.name, t.name);
-                let mut dur: i32;
+                let mut dur;
                 if cached_durs[&track_name] == Value::Null {
                     let info = lfm::get_track_info(&t.artist.name, &t.name).await;
                     dur = lfm::get_track_duration(&info);
@@ -131,8 +131,8 @@ async fn calculate_top_genres(lfm_client: Client<String, &str>, spotify_client: 
                 }
                 artist_scrobbles[&t.artist.name] = json!(artist_scrobbles[&t.artist.name].as_i64().unwrap_or(0) + 1);
             },
-            Err(_e) => {
-                //println!("error: {:?}", e);
+            Err(e) => {
+                println!("error: {:?}", e);
             }
         }
     }
@@ -150,17 +150,24 @@ async fn calculate_top_genres(lfm_client: Client<String, &str>, spotify_client: 
     Ok(top_genres)
 }
 
+
 pub async fn calculate_year(lfm_client: Client<String, &str>, spotify_client: ClientCredsSpotify) -> HashMap<i64, i64> {
-    let now = Local::now().naive_utc();
-    let yearago = now.checked_sub_months(Months::new(12)).unwrap();
+    let now = Local::now();
+    //let yearago = now.checked_sub_months(Months::new(12)).unwrap();
+    let yearago = Utc.with_ymd_and_hms(now.year(), 1, 1, 0, 0, 0).unwrap().timestamp();
 
     // subtracting one since it would count 365 to 366 (or december 31st to january 1st) otherwise
     let days_in_year = if now.year() % 4 == 0 { 365 } else { 364 };
+    let seconds_in_day = 24 * 60 * 60;
     let mut days: HashMap<i64, i64> = HashMap::with_capacity(days_in_year as usize);
     for i in tqdm(1..days_in_year) {
-        let from_ts = yearago.checked_add_days(Days::new(i)).unwrap().and_utc().timestamp();
-        let to_ts = yearago.checked_add_days(Days::new(i+1)).unwrap().and_utc().timestamp();
-        days.insert(from_ts, calculate_scrobble_time(lfm_client.clone(), spotify_client.clone(), from_ts, to_ts).await.unwrap_or(0) as i64);
+        let from_ts = yearago + (i * seconds_in_day);
+        let to_ts = yearago + ((i+1) * seconds_in_day);
+        let time = calculate_scrobble_time(lfm_client.clone(), spotify_client.clone(), from_ts, to_ts).await.unwrap_or(0) as i64;
+        days.insert(
+            from_ts, 
+            if time > 24 * 60 * 60 * 1000 { 0 } else { time }
+        );
         //println!("{}", i);
     }
     return days;
