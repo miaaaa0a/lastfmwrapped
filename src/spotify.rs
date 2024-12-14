@@ -1,3 +1,6 @@
+use std::str::FromStr;
+
+use chrono::naive::serde;
 use rspotify::{model::SearchType, prelude::*, ClientCredsSpotify, Credentials};
 use serde_json::{self, json, Value};
 use dotenvy;
@@ -37,4 +40,20 @@ pub async fn find_artist_genres(c: &ClientCredsSpotify, q: &String) -> Value {
             json!(vec![""])
         }
     }
+}
+
+pub async fn find_song_cover(c: &ClientCredsSpotify, q: &String, name: &String) -> Value {
+    let search_result = serde_json::to_value(c.search(&q, SearchType::Track, None, None, Some(1), None).await.unwrap()).unwrap();
+    //println!("{} - {}", search_result["tracks"]["items"][0]["artists"][0]["name"], search_result["tracks"]["items"][0]["name"]);
+    return match search_result["tracks"]["items"][0]["name"].as_str().unwrap().to_lowercase() == name.to_lowercase() {
+        true => {
+            //println!("matches");
+            search_result["tracks"]["items"][0]["album"]["images"][0].clone()
+        },
+        false => {
+            Value::from_str("{'url': 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/50/Black_colour.jpg/180px-Black_colour.jpg'}").unwrap()
+        }
+    }
+    //println!("{:?}", search_result["tracks"]["items"][0]["duration_ms"]);
+    //return search_result["tracks"]["items"][0]["duration_ms"].as_i64();
 }
