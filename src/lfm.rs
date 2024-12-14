@@ -35,7 +35,7 @@ pub fn get_track_duration(response: &Value) -> i32 {
 }
 
 // tracks over 1 year
-pub async fn fetch_top_5_tracks(username: &String) -> HashMap<String, String> {
+pub async fn fetch_top_5_tracks(username: &String) -> HashMap<String, i32> {
     let key = get_api_key();
     let request_url = format!("http://ws.audioscrobbler.com/2.0/?method=user.gettoptracks&user={}&api_key={}&period=12month&limit=5&format=json", username, key);
     let resp_text = reqwest::get(request_url).await.unwrap().text().await.unwrap();
@@ -43,14 +43,14 @@ pub async fn fetch_top_5_tracks(username: &String) -> HashMap<String, String> {
     let mut tracks = HashMap::with_capacity(5);
     for t in resp["toptracks"]["track"].as_array().unwrap() {
         let track_name = format!("{} - {}", t["artist"]["name"], t["name"]).replace("\"", "");
-        let playcount = t["playcount"].as_str().unwrap_or("0").to_string();
+        let playcount = t["playcount"].to_string().trim_matches('\"').parse::<i32>().unwrap_or(0);
         tracks.insert(track_name, playcount);
     }
     return tracks;
 }
 
 // artists over 1 year
-pub async fn fetch_top_5_artists(username: &String) -> HashMap<String, String> {
+pub async fn fetch_top_5_artists(username: &String) -> HashMap<String, i32> {
     let key = get_api_key();
     let request_url = format!("http://ws.audioscrobbler.com/2.0/?method=user.gettopartists&user={}&api_key={}&period=12month&limit=5&format=json", username, key);
     let resp_text = reqwest::get(request_url).await.unwrap().text().await.unwrap();
@@ -58,7 +58,7 @@ pub async fn fetch_top_5_artists(username: &String) -> HashMap<String, String> {
     let mut artists = HashMap::with_capacity(5);
     for t in resp["topartists"]["artist"].as_array().unwrap() {
         let artist = t["name"].as_str().unwrap().to_string();
-        let playcount = t["playcount"].as_str().unwrap_or("0").to_string();
+        let playcount = t["playcount"].to_string().trim_matches('\"').parse::<i32>().unwrap_or(0);
         artists.insert(artist, playcount);
     }
     return artists;
