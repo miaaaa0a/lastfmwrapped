@@ -1328,6 +1328,7 @@ name = "lastfmwrapped"
 version = "0.1.0"
 dependencies = [
  "ab_glyph",
+ "bytes",
  "chrono",
  "dotenvy",
  "env_logger",

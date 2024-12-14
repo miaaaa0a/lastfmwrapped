@@ -1,28 +1,30 @@
-use std::{error::Error, fs};
-use serde_json::json;
-use chrono::{TimeZone, Utc};
+use std::{error::Error, io::Cursor};
+use image::ImageReader;
 pub mod lfm;
 pub mod calculations;
 pub mod spotify;
 pub mod imageprocessing;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>>{
+async fn main() -> Result<(), Box<dyn Error>> {
     let lfm_client = lfm::init_client("redoverflow");
     let spotify_client = spotify::auth().await;
-    let total = calculations::calculate_year(lfm_client, spotify_client).await;
-    //println!("each month: {:?}\n total: {}", total, total.iter().sum::<i64>());
-    let largest = calculations::largest_value_hashmap(&total);
-    println!("busiest day: {} (seconds: {} ({}m))", Utc.timestamp_opt(largest[0], 0).unwrap().to_rfc2822(), largest[1] / 1000, (largest[1] / 1000) / 60);
-    let mut total_time: i64 = 0;
-    for i in total.values() {
-        total_time += i;
-    }
-    println!("total: {}s ({}m)", total_time / 1000, (total_time / 1000) / 60);
-    //let total_value = json!(total);
-    //let total_str = serde_json::to_string_pretty(&total_value).unwrap_or("".to_string());
-    //let _ = fs::write("total.json", total_str);
-    let tm_img = imageprocessing::minutes_listened((total_time / 1000) / 60, largest[0], (largest[1] / 1000) / 60)?;
-    tm_img.save("meow.png")?;
+    let top_tracks = lfm::fetch_top_5_tracks(&"redoverflow".to_string()).await;
+    println!("{:?}", top_tracks);
+    let mut top_tracks_sorted = top_tracks.iter().collect::<Vec<_>>();
+    top_tracks_sorted.sort_by_key(|k| k.1);
+    top_tracks_sorted.reverse();
+    let top_track = top_tracks_sorted[0].0;
+    let top_track_name = top_track.split(" - ").collect::<Vec<_>>()[1].to_string();
+    let song_cover_info = spotify::find_song_cover(&spotify_client, top_track, &top_track_name).await;
+    let song_cover_url = song_cover_info["url"].as_str().unwrap_or("").trim_matches('\"');
+    println!("{}", song_cover_url);
+    let song_cover = reqwest::get(song_cover_url).await?.bytes().await?;
+    println!("{:?}", song_cover.len());
+    let song_cover_reader = ImageReader::new(Cursor::new(&song_cover)).with_guessed_format()?;
+    let song_cover_img = song_cover_reader.decode()?;
+    
+    let topsong = imageprocessing::top_song(top_track.clone(), *top_tracks_sorted[0].1 as i64, song_cover_img)?;
+    topsong.save("meow.png")?;
     Ok(())
 }

@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 ab_glyph = "0.2.29"
+bytes = "1.9.0"
 chrono = { version = "0.4.38", features = ["clock"] }
 dotenvy = "0.15.7"
 env_logger = "0.11.5"

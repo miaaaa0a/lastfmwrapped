@@ -1,9 +1,25 @@
 use std::error::Error;
-use image::{DynamicImage, ImageBuffer, ImageReader, Rgba};
+use image::{imageops::{self, FilterType}, DynamicImage, ImageBuffer, ImageReader, Rgba};
 use imageproc::drawing::{draw_text, text_size};
 use ab_glyph::{FontRef, PxScale};
 use chrono::{TimeZone, Utc};
 use thousands::Separable;
+
+struct SpotifyFont<'a> {
+    regular: FontRef<'a>,
+    medium: FontRef<'a>,
+    extra_bold: FontRef<'a>,
+}
+
+impl<'b> SpotifyFont<'b> {
+    pub fn new(fonts: Vec<FontRef<'b>>) -> Self {
+        Self {
+            regular: fonts[0].clone(),
+            medium: fonts[1].clone(),
+            extra_bold: fonts[2].clone(),
+        }
+    }
+}
 
 fn calculate_text_centre(img: &DynamicImage, scale: PxScale, font: &FontRef, text: &str) -> (i32, i32) {
     let text_size = text_size(scale, font, text);
@@ -30,16 +46,23 @@ fn batch_draw_text(strs: Vec<&str>, xys: Vec<(i32, i32)>, img: ImageBuffer<Rgba<
     mimg
 }
 
+fn fonts() -> Result<SpotifyFont<'static>, Box<dyn Error>> {
+    let sf = SpotifyFont::new(
+        vec![
+            FontRef::try_from_slice(include_bytes!("../fonts/SpotifyMix-Regular.ttf"))?,
+            FontRef::try_from_slice(include_bytes!("../fonts/SpotifyMix-Medium.ttf"))?,
+            FontRef::try_from_slice(include_bytes!("../fonts/SpotifyMix-Extrabold.ttf"))?,
+        ]
+    );
+    Ok(sf)
+}
+
 // if theres any god on this earth,
 // will you please forgive me for this
 // unholy piece of code?
 pub fn minutes_listened(total: i64, busiest_day: i64, busiest_time: i64) -> Result<ImageBuffer<Rgba<u8>, Vec<u8>>, Box<dyn Error>> {
     let img = ImageReader::open("imgs/minuteslistened.png")?.decode()?;
-    let fonts = (
-        FontRef::try_from_slice(include_bytes!("../fonts/SpotifyMix-Extrabold.ttf"))?,
-        FontRef::try_from_slice(include_bytes!("../fonts/SpotifyMix-Medium.ttf"))?,
-        FontRef::try_from_slice(include_bytes!("../fonts/SpotifyMix-Regular.ttf"))?,   
-    );
+    let fonts = fonts().unwrap();
     let totalscale = PxScale::from(290.0);
     let busiestscale = PxScale::from(50.0);
     let busiest_day_string = Utc.timestamp_opt(busiest_day, 0).unwrap().format("%B %_d").to_string();
@@ -48,20 +71,20 @@ pub fn minutes_listened(total: i64, busiest_day: i64, busiest_time: i64) -> Resu
     let totalc = calculate_text_centre(
         &img, 
         totalscale, 
-        &fonts.0, 
+        &fonts.extra_bold, 
         &total_str
     );
     let busiestc = calculate_text_centre(
         &img, 
         busiestscale, 
-        &fonts.1, 
+        &fonts.medium, 
         &format!("Biggest listening day: {} with {} minutes", busiest_day_string, busiest_time)
     );
-    let busiest_day_len = text_size(busiestscale, &fonts.0, &busiest_day_string);
-    let busiest_time_len = text_size(busiestscale, &fonts.0, &busiest_time.to_string());
+    let busiest_day_len = text_size(busiestscale, &fonts.extra_bold, &busiest_day_string);
+    let busiest_time_len = text_size(busiestscale, &fonts.extra_bold, &busiest_time.to_string());
     let busiest_str_len = (
-        text_size(busiestscale, &fonts.1, "Biggest listening day: "),
-        text_size(busiestscale, &fonts.1, " with "),
+        text_size(busiestscale, &fonts.medium, "Biggest listening day: "),
+        text_size(busiestscale, &fonts.medium, " with "),
     );
 
     let busiest_day_coords = (busiestc.0 + (busiest_str_len.0.0 as i32), busiestc.1);
@@ -77,7 +100,7 @@ pub fn minutes_listened(total: i64, busiest_day: i64, busiest_time: i64) -> Resu
         totalc.0, 
         totalc.1 - 189, 
         totalscale, 
-        &fonts.0, 
+        &fonts.extra_bold, 
         &total_str
     );
     modified_img = batch_draw_text(
@@ -98,14 +121,34 @@ pub fn minutes_listened(total: i64, busiest_day: i64, busiest_time: i64) -> Resu
         modified_img, 
         busiestscale, 
         vec![
-            &fonts.1,
-            &fonts.0,
-            &fonts.1,
-            &fonts.0,
-            &fonts.1,
+            &fonts.medium,
+            &fonts.extra_bold,
+            &fonts.medium,
+            &fonts.extra_bold,
+            &fonts.medium,
         ],
         (0, 132)
     );
 
     Ok(modified_img)
+}
+
+pub fn top_song(name: String, scrobbles: i64, cover: DynamicImage) -> Result<DynamicImage, Box<dyn Error>> {
+    let mut img = ImageReader::open("imgs/topsong.png")?.decode()?;
+    let fonts = fonts();
+    // my top song and artist name
+    let h1scale = PxScale::from(55.0);
+    // total streams
+    let h2scale = PxScale::from(45.0);
+    // song name
+    let songscale = PxScale::from(100.0);
+    // all streams
+    let scrobblescale = PxScale::from(90.0);
+    // song cover scale
+    let coverscale = (584, 584);
+    let coverxy = (248, 204);
+
+    let scaled_cover = cover.resize(coverscale.0, coverscale.1, FilterType::CatmullRom);
+    imageops::overlay(&mut img, &scaled_cover, coverxy.0, coverxy.1);
+    Ok(img)
 }
