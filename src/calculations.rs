@@ -41,12 +41,14 @@ fn save_cache(cache: Value, ctype: CacheType) {
 
 pub fn largest_value_hashmap(hm: &HashMap<i64, i64>) -> Vec<i64> {
     let mut largest = 0;
+    let mut largest_key = 0;
     for (i, j) in hm {
         if *j > largest {
-            largest = *i;
+            largest = *j;
+            largest_key = *i;
         }
     }
-    return vec![largest, *hm.get(&largest).unwrap()];
+    return vec![largest_key, largest];
 }
 
 pub fn largest_value(v: Value) -> Vec<String> {

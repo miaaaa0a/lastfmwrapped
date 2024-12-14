@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn Error>>{
     //let total_value = json!(total);
     //let total_str = serde_json::to_string_pretty(&total_value).unwrap_or("".to_string());
     //let _ = fs::write("total.json", total_str);
-    let tm_img = imageprocessing::minutes_listened(((total_time / 1000) / 60).to_string())?;
+    let tm_img = imageprocessing::minutes_listened((total_time / 1000) / 60, largest[0], (largest[1] / 1000) / 60)?;
     tm_img.save("meow.png")?;
     Ok(())
 }
