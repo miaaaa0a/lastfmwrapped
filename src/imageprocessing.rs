@@ -1,6 +1,6 @@
 use std::error::Error;
 use image::{imageops::{self, FilterType}, DynamicImage, ImageBuffer, ImageReader, Rgba};
-use imageproc::drawing::{draw_text, text_size};
+use imageproc::drawing::{draw_text, draw_text_mut, text_size};
 use ab_glyph::{FontRef, PxScale};
 use chrono::{TimeZone, Utc};
 use thousands::Separable;
@@ -30,11 +30,10 @@ fn calculate_text_centre(img: &DynamicImage, scale: PxScale, font: &FontRef, tex
     (txtx, txty)
 }
 
-fn batch_draw_text(strs: Vec<&str>, xys: Vec<(i32, i32)>, img: ImageBuffer<Rgba<u8>, Vec<u8>>, scale: PxScale, fonts: Vec<&FontRef>, offset: (i32, i32)) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
-    let mut mimg = img.clone();
+fn batch_draw_text(strs: Vec<&str>, xys: Vec<(i32, i32)>, img: &mut DynamicImage, scale: PxScale, fonts: Vec<&FontRef>, offset: (i32, i32)) {
     for i in 0..strs.len() {
-        mimg = draw_text(
-            &mimg, 
+        draw_text_mut(
+            img, 
             Rgba([255, 255, 255, 255]), 
             xys[i].0 + offset.0, 
             xys[i].1 + offset.1, 
@@ -43,7 +42,6 @@ fn batch_draw_text(strs: Vec<&str>, xys: Vec<(i32, i32)>, img: ImageBuffer<Rgba<
             strs[i]
         );
     }
-    mimg
 }
 
 fn fonts() -> Result<SpotifyFont<'static>, Box<dyn Error>> {
@@ -57,11 +55,34 @@ fn fonts() -> Result<SpotifyFont<'static>, Box<dyn Error>> {
     Ok(sf)
 }
 
+fn fallback_fonts() -> Result<SpotifyFont<'static>, Box<dyn Error>> {
+    let sf = SpotifyFont::new(
+        vec![
+            FontRef::try_from_slice(include_bytes!("../fonts/FluidSans-Light.ttf"))?,
+            FontRef::try_from_slice(include_bytes!("../fonts/FluidSans-Regular.ttf"))?,
+            FontRef::try_from_slice(include_bytes!("../fonts/FluidSans-Black.ttf"))?,
+        ]
+    );
+    Ok(sf)
+}
+
+fn check_for_cyrillic(str: String) -> bool {
+    let cyrillic_chars = (0x400..0x4ff).map(|x| char::from_u32(x).unwrap()).collect::<Vec<_>>();
+    let mut ret = false;
+    for c in str.chars() {
+        if cyrillic_chars.contains(&c) {
+            ret = true;
+            break;
+        }
+    }
+    ret
+}
+
 // if theres any god on this earth,
 // will you please forgive me for this
 // unholy piece of code?
-pub fn minutes_listened(total: i64, busiest_day: i64, busiest_time: i64) -> Result<ImageBuffer<Rgba<u8>, Vec<u8>>, Box<dyn Error>> {
-    let img = ImageReader::open("imgs/minuteslistened.png")?.decode()?;
+pub fn minutes_listened(total: i64, busiest_day: i64, busiest_time: i64) -> Result<DynamicImage, Box<dyn Error>> {
+    let mut img = ImageReader::open("imgs/minuteslistened.png")?.decode()?;
     let fonts = fonts().unwrap();
     let totalscale = PxScale::from(290.0);
     let busiestscale = PxScale::from(50.0);
@@ -94,8 +115,8 @@ pub fn minutes_listened(total: i64, busiest_day: i64, busiest_time: i64) -> Resu
 
     // draw total minutes
     // in official image text is offset from bottom by 378 / 2 px
-    let mut modified_img = draw_text(
-        &img, 
+    draw_text_mut(
+        &mut img, 
         Rgba([255, 255, 255, 255]), 
         totalc.0, 
         totalc.1 - 189, 
@@ -103,7 +124,7 @@ pub fn minutes_listened(total: i64, busiest_day: i64, busiest_time: i64) -> Resu
         &fonts.extra_bold, 
         &total_str
     );
-    modified_img = batch_draw_text(
+    batch_draw_text(
         vec![
             "Biggest listening day: ",
             &busiest_day_string,
@@ -118,7 +139,7 @@ pub fn minutes_listened(total: i64, busiest_day: i64, busiest_time: i64) -> Resu
             busiest_time_coords,
             busiest_min_coords
         ], 
-        modified_img, 
+        &mut img, 
         busiestscale, 
         vec![
             &fonts.medium,
@@ -130,16 +151,17 @@ pub fn minutes_listened(total: i64, busiest_day: i64, busiest_time: i64) -> Resu
         (0, 132)
     );
 
-    Ok(modified_img)
+    Ok(img)
 }
 
 pub fn top_song(name: String, scrobbles: i64, cover: DynamicImage) -> Result<DynamicImage, Box<dyn Error>> {
     let mut img = ImageReader::open("imgs/topsong.png")?.decode()?;
-    let fonts = fonts();
-    // my top song and artist name
-    let h1scale = PxScale::from(55.0);
+    let song_info = name.split(" - ").collect::<Vec<_>>();
+    let fonts = if check_for_cyrillic(song_info.join(" ")) { fallback_fonts()? } else { fonts()? };
+    // artist name
+    let artistscale = PxScale::from(60.0);
     // total streams
-    let h2scale = PxScale::from(45.0);
+    let h2scale = PxScale::from(42.0);
     // song name
     let songscale = PxScale::from(100.0);
     // all streams
@@ -148,7 +170,41 @@ pub fn top_song(name: String, scrobbles: i64, cover: DynamicImage) -> Result<Dyn
     let coverscale = (584, 584);
     let coverxy = (248, 204);
 
+    // text centres
+    // track name
+    let trackc = calculate_text_centre(
+        &img, 
+        songscale, 
+        &fonts.extra_bold, 
+        song_info[1]
+    );
+    // artist name
+    let artistc = calculate_text_centre(
+        &img, 
+        artistscale, 
+        &fonts.regular, 
+        song_info[0]
+    );
+
     let scaled_cover = cover.resize(coverscale.0, coverscale.1, FilterType::CatmullRom);
     imageops::overlay(&mut img, &scaled_cover, coverxy.0, coverxy.1);
+    draw_text_mut(
+        &mut img,
+        Rgba([0, 0, 0, 255]),
+        trackc.0,
+        trackc.1 + 230,
+        songscale,
+        &fonts.extra_bold,
+        song_info[1]
+    );
+    draw_text_mut(
+        &mut img,
+        Rgba([0, 0, 0, 255]),
+        artistc.0,
+        artistc.1 + 336,
+        artistscale,
+        &fonts.regular,
+        song_info[0]
+    );
     Ok(img)
 }
