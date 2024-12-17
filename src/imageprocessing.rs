@@ -5,6 +5,7 @@ use ab_glyph::{FontRef, PxScale};
 use chrono::{TimeZone, Utc};
 use thousands::Separable;
 
+#[derive(Clone)]
 struct SpotifyFont<'a> {
     regular: FontRef<'a>,
     medium: FontRef<'a>,
@@ -17,6 +18,22 @@ impl<'b> SpotifyFont<'b> {
             regular: fonts[0].clone(),
             medium: fonts[1].clone(),
             extra_bold: fonts[2].clone(),
+        }
+    }
+}
+
+struct SongFonts<'a> {
+    artist: SpotifyFont<'a>,
+    name: SpotifyFont<'a>,
+    number: SpotifyFont<'a>,
+}
+
+impl<'b> SongFonts<'b> {
+    pub fn new(font: SpotifyFont<'b>, fallback_font: SpotifyFont<'b>, strs: &Vec<&str>) -> Self {
+        Self {
+            artist: if check_for_cyrillic(strs[0]) { fallback_font.clone() } else { font.clone() },
+            name: if check_for_cyrillic(strs[1]) { fallback_font.clone() } else { font.clone() },
+            number: font.clone()
         }
     }
 }
@@ -66,7 +83,7 @@ fn fallback_fonts() -> Result<SpotifyFont<'static>, Box<dyn Error>> {
     Ok(sf)
 }
 
-fn check_for_cyrillic(str: String) -> bool {
+fn check_for_cyrillic(str: &str) -> bool {
     let cyrillic_chars = (0x400..0x4ff).map(|x| char::from_u32(x).unwrap()).collect::<Vec<_>>();
     let mut ret = false;
     for c in str.chars() {
@@ -78,9 +95,6 @@ fn check_for_cyrillic(str: String) -> bool {
     ret
 }
 
-// if theres any god on this earth,
-// will you please forgive me for this
-// unholy piece of code?
 pub fn minutes_listened(total: i64, busiest_day: i64, busiest_time: i64) -> Result<DynamicImage, Box<dyn Error>> {
     let mut img = ImageReader::open("imgs/minuteslistened.png")?.decode()?;
     let fonts = fonts().unwrap();
@@ -157,15 +171,13 @@ pub fn minutes_listened(total: i64, busiest_day: i64, busiest_time: i64) -> Resu
 pub fn top_song(name: String, scrobbles: i64, cover: DynamicImage) -> Result<DynamicImage, Box<dyn Error>> {
     let mut img = ImageReader::open("imgs/topsong.png")?.decode()?;
     let song_info = name.split(" - ").collect::<Vec<_>>();
-    let fonts = if check_for_cyrillic(song_info.join(" ")) { fallback_fonts()? } else { fonts()? };
+    let fonts = SongFonts::new(fonts()?, fallback_fonts()?, &song_info);
     // artist name
     let artistscale = PxScale::from(60.0);
-    // total streams
-    let h2scale = PxScale::from(42.0);
     // song name
     let songscale = PxScale::from(100.0);
     // all streams
-    let scrobblescale = PxScale::from(90.0);
+    let scrobblescale = PxScale::from(85.0);
     // song cover scale
     let coverscale = (584, 584);
     let coverxy = (248, 204);
@@ -175,15 +187,22 @@ pub fn top_song(name: String, scrobbles: i64, cover: DynamicImage) -> Result<Dyn
     let trackc = calculate_text_centre(
         &img, 
         songscale, 
-        &fonts.extra_bold, 
+        &fonts.name.extra_bold, 
         song_info[1]
     );
     // artist name
     let artistc = calculate_text_centre(
         &img, 
         artistscale, 
-        &fonts.regular, 
+        &fonts.artist.regular, 
         song_info[0]
+    );
+    // scrobbles
+    let scrobblesc = calculate_text_centre(
+        &img, 
+        scrobblescale, 
+        &fonts.number.regular, 
+        &scrobbles.to_string()
     );
 
     let scaled_cover = cover.resize(coverscale.0, coverscale.1, FilterType::CatmullRom);
@@ -194,7 +213,7 @@ pub fn top_song(name: String, scrobbles: i64, cover: DynamicImage) -> Result<Dyn
         trackc.0,
         trackc.1 + 230,
         songscale,
-        &fonts.extra_bold,
+        &fonts.name.extra_bold,
         song_info[1]
     );
     draw_text_mut(
@@ -203,8 +222,17 @@ pub fn top_song(name: String, scrobbles: i64, cover: DynamicImage) -> Result<Dyn
         artistc.0,
         artistc.1 + 336,
         artistscale,
-        &fonts.regular,
+        &fonts.artist.regular,
         song_info[0]
+    );
+    draw_text_mut(
+        &mut img,
+        Rgba([0, 0, 0, 255]),
+        scrobblesc.0,
+        scrobblesc.1 + 529,
+        scrobblescale,
+        &fonts.number.extra_bold,
+        &scrobbles.to_string()
     );
     Ok(img)
 }

@@ -25,6 +25,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let song_cover_img = song_cover_reader.decode()?;
     
     let topsong = imageprocessing::top_song(top_track.clone(), *top_tracks_sorted[0].1 as i64, song_cover_img)?;
-    topsong.save("meow.png")?;
+    topsong.save("topsongs.png")?;
     Ok(())
 }
