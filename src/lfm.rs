@@ -1,7 +1,7 @@
 use lastfm::Client;
 use dotenvy;
 use std::{collections::HashMap, env};
-use serde_json::Value;
+use serde_json::{json, Value};
 
 fn get_api_key() -> String {
     let _ = dotenvy::dotenv();
@@ -24,7 +24,7 @@ pub async fn get_track_info(artist: &String, title: &String) -> Value {
     let key = get_api_key();
     let request_url = format!("http://ws.audioscrobbler.com/2.0/?method=track.getinfo&api_key={}&artist={}&track={}&format=json", key, artist, title);
     let resp_text = reqwest::get(request_url).await.unwrap().text().await.unwrap();
-    let resp: Value = serde_json::from_str(&resp_text).unwrap();
+    let resp: Value = serde_json::from_str(&resp_text).unwrap_or(json!({ "artist": { "name": "" }, "name": "" }));
     //println!("{}", resp);
     return resp;
 }

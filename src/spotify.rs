@@ -1,9 +1,8 @@
 use std::str::FromStr;
-
-use chrono::naive::serde;
 use rspotify::{model::SearchType, prelude::*, ClientCredsSpotify, Credentials};
 use serde_json::{self, json, Value};
 use dotenvy;
+use crate::defaults::Defaults;
 
 pub async fn auth() -> ClientCredsSpotify {
     let _ = dotenvy::dotenv();
@@ -14,7 +13,14 @@ pub async fn auth() -> ClientCredsSpotify {
 }
 
 pub async fn find_song_duration(c: &ClientCredsSpotify, q: &String, name: &String) -> Option<i64> {
-    let search_result = serde_json::to_value(c.search(&q, SearchType::Track, None, None, Some(1), None).await.unwrap()).unwrap();
+    let value = c.search(&q, SearchType::Track, None, None, Some(1), None).await;
+    // incredible error handling
+    let search_result = serde_json::to_value(
+        match value.as_ref().err() {
+            Some(_) => return Some(0 as i64),
+            None => value.unwrap()
+        }
+    ).unwrap();
     //println!("{} - {}", search_result["tracks"]["items"][0]["artists"][0]["name"], search_result["tracks"]["items"][0]["name"]);
     return match search_result["tracks"]["items"][0]["name"].as_str().unwrap().to_lowercase() == name.to_lowercase() {
         true => {
@@ -51,7 +57,7 @@ pub async fn find_song_cover(c: &ClientCredsSpotify, q: &String, name: &String) 
             search_result["tracks"]["items"][0]["album"]["images"][0].clone()
         },
         false => {
-            Value::from_str("{'url': 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/50/Black_colour.jpg/180px-Black_colour.jpg'}").unwrap()
+            Value::from_str(Defaults::BLACK_IMAGE).unwrap()
         }
     }
     //println!("{:?}", search_result["tracks"]["items"][0]["duration_ms"]);
