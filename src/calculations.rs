@@ -13,6 +13,42 @@ enum CacheType {
     Genre
 }
 
+#[derive(Clone)]
+pub struct GenreMonths {
+    pub january: HashMap<String, Vec<Value>>,
+    pub april: HashMap<String, Vec<Value>>,
+    pub august: HashMap<String, Vec<Value>>,
+}
+
+impl GenreMonths {
+    pub fn new() -> Self {
+        Self {
+            january: HashMap::new(),
+            april: HashMap::new(),
+            august: HashMap::new(),
+        }
+    }
+    pub fn set(self: &mut Self, i: i8, v: HashMap<String, Vec<Value>>) {
+        match i {
+            0 => self.january = v,
+            1 => self.april = v,
+            2 => self.august = v,
+            default => panic!("outta bounds!!!!!!!!! index {} is HIGHER than 2!! >:c", default)
+        }
+    }
+    pub fn get(self: Self, i: usize) -> HashMap<String, Vec<Value>> {
+        match i {
+            0 => self.january,
+            1 => self.april,
+            2 => self.august,
+            default => panic!("outta bounds!!!!!!!!! index {} is HIGHER than 2!! >:c", default)
+        }
+    }
+    pub fn get_month_string(self: Self, i: usize) -> String {
+        vec!["January", "April", "August"][i].to_string()
+    }
+}
+
 fn load_cache(ctype: CacheType) -> Value {
     let cache_text;
     match ctype {
@@ -117,9 +153,9 @@ async fn calculate_scrobble_time(lfm_client: Client<String, &str>, spotify_clien
     Ok(total_seconds)
 }
 
-async fn calculate_top_genres(lfm_client: Client<String, &str>, spotify_client: ClientCredsSpotify, from: i64, to: i64) -> Result<Vec<(String, Vec<Value>)>, Box<dyn Error>> {
+async fn calculate_top_genres(lfm_client: Client<String, &str>, spotify_client: ClientCredsSpotify, from: i64, to: i64) -> Result<HashMap<String, Vec<Value>>, Box<dyn Error>> {
     let track_stream = lfm_client.recent_tracks(Some(from), Some(to)).await?.into_stream();
-    let mut cached_genres = load_cache(CacheType::Duration);
+    let mut cached_genres = load_cache(CacheType::Genre);
     let mut artist_scrobbles: Value = Default::default();
     // add item for errored out tracks
     cached_genres[""] = json!(0);
@@ -128,7 +164,8 @@ async fn calculate_top_genres(lfm_client: Client<String, &str>, spotify_client: 
         match i {
             Ok(t) => {
                 if cached_genres[&t.artist.name] == Value::Null {
-                    let genres = spotify::find_artist_genres(&spotify_client, &t.artist.name).await;
+                    let artist = &t.artist.name.split(&[';', ',']).collect::<Vec<&str>>()[0];
+                    let genres = spotify::find_artist_genres(&spotify_client, &artist.to_string()).await;
                     cached_genres[&t.artist.name] = genres;
                 }
                 artist_scrobbles[&t.artist.name] = json!(artist_scrobbles[&t.artist.name].as_i64().unwrap_or(0) + 1);
@@ -140,11 +177,11 @@ async fn calculate_top_genres(lfm_client: Client<String, &str>, spotify_client: 
     }
 
     let mut top_by_scrobble = sort_value(artist_scrobbles);
-    let mut top_genres: Vec<(String, Vec<Value>)> = Vec::with_capacity(5);
+    let mut top_genres: HashMap<String, Vec<Value>> = HashMap::with_capacity(5);
     top_by_scrobble.drain(3..top_by_scrobble.len());
     for (i, _) in top_by_scrobble {
-        top_genres.push(
-            (i.clone(), cached_genres[i].as_array().unwrap().clone())
+        top_genres.insert(
+            i.clone(), cached_genres[i].as_array().unwrap().clone()
         );
     }
 
@@ -177,16 +214,16 @@ pub async fn calculate_year(lfm_client: Client<String, &str>, spotify_client: Cl
 
 
 // Vec<Vec<(String, Vec<Value>)>>
-pub async fn calculate_genre_months(lfm_client: Client<String, &str>, spotify_client: ClientCredsSpotify) -> Result<Vec<Vec<(String, Vec<Value>)>>, Box<dyn Error>> {
+pub async fn calculate_genre_months(lfm_client: Client<String, &str>, spotify_client: ClientCredsSpotify) -> Result<GenreMonths, Box<dyn Error>> {
     let now = Local::now().naive_utc();
     let yearago = now.checked_sub_months(Months::new(12)).unwrap();
-    // january, march, june, september
-    let mut months = Vec::with_capacity(4);
+    // january, april, august
+    let mut months = GenreMonths::new();
 
-    for i in tqdm(0..4) {
+    for i in tqdm(0..3) {
         let from_ts = yearago.checked_add_months(Months::new(i * 3)).unwrap().and_utc().timestamp();
         let to_ts = yearago.checked_add_months(Months::new((i * 3) + 1)).unwrap().and_utc().timestamp();
-        months.push(calculate_top_genres(lfm_client.clone(), spotify_client.clone(), from_ts, to_ts).await?);
+        months.set(i as i8, calculate_top_genres(lfm_client.clone(), spotify_client.clone(), from_ts, to_ts).await?);
     }
 
     Ok(months)
