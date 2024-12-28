@@ -3,5 +3,4 @@
 .env
 duration.json
 genre.json
-meow.png
-cover.png
+/*.png

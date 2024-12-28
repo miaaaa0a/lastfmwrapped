@@ -190,7 +190,7 @@ async fn calculate_top_genres(lfm_client: Client<String, &str>, spotify_client: 
 }
 
 
-pub async fn calculate_year(lfm_client: Client<String, &str>, spotify_client: ClientCredsSpotify) -> HashMap<i64, i64> {
+pub async fn calculate_year(lfm_client: Client<String, &str>, spotify_client: &ClientCredsSpotify) -> HashMap<i64, i64> {
     let now = Local::now();
     //let yearago = now.checked_sub_months(Months::new(12)).unwrap();
     let yearago = Utc.with_ymd_and_hms(now.year(), 1, 1, 0, 0, 0).unwrap().timestamp();

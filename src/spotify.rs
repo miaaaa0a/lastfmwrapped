@@ -63,3 +63,12 @@ pub async fn find_song_cover(c: &ClientCredsSpotify, q: &String, name: &String) 
     //println!("{:?}", search_result["tracks"]["items"][0]["duration_ms"]);
     //return search_result["tracks"]["items"][0]["duration_ms"].as_i64();
 }
+
+pub async fn find_artist_icon(c: &ClientCredsSpotify, q: &String) -> Value {
+    let search_result = serde_json::to_value(c.search(&q, SearchType::Artist, None, None, Some(1), None).await.unwrap()).unwrap();
+    return if search_result["artists"]["items"][0]["name"].as_str().unwrap().to_lowercase() == q.to_lowercase() {
+        search_result["artists"]["items"][0]["images"][0].clone()
+    } else {
+        Value::from_str(Defaults::BLACK_IMAGE).unwrap()
+    }
+}

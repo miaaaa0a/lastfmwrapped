@@ -10,6 +10,7 @@ use thousands::Separable;
 use aho_corasick::AhoCorasick;
 use titlecase::titlecase;
 use regex::Regex;
+use unicode_truncate::UnicodeTruncateStr;
 use crate::calculations::GenreMonths;
 
 #[derive(Clone)]
@@ -87,6 +88,14 @@ fn vec_substring(vec: &Vec<&String>, substr: &str) -> bool {
         }
     }
     ret
+}
+
+fn trunc(s: &str, to: usize) -> String {
+    if s.len() > to {
+        s.unicode_truncate(to).0.trim_matches(' ').to_owned() + "..."
+    } else {
+        s.to_owned()
+    }
 }
 
 fn fonts() -> Result<SpotifyFont<'static>, Box<dyn Error>> {
@@ -429,4 +438,55 @@ pub fn genre_evolution(months: GenreMonths) -> Result<Vec<DynamicImage>, Box<dyn
     }
 
     Ok(modified_imgs)
+}
+
+pub fn final_image(total: i64, songs: Vec<&str>, artists: Vec<&str>, cover: DynamicImage) -> Result<DynamicImage, Box<dyn Error>> {
+    let mut img = ImageReader::open("imgs/final.png")?.decode()?;
+    let fallbackscale = PxScale::from(59.0);
+    let scale = PxScale::from(64.0);
+    let totalscale = PxScale::from(130.0);
+    let total_str = total.separate_with_commas();
+
+    let coverscale = (616, 616);
+    let coverxy = (232, 192);
+    let scaled_cover = cover.resize(coverscale.0, coverscale.1, FilterType::CatmullRom);
+    imageops::overlay(&mut img, &scaled_cover, coverxy.0, coverxy.1);
+
+    let mut artistxy = (124, 1102);
+    let mut titlexy = (606, 1102);
+    let totalxy = (80, 1516);
+    for (a, t) in artists.iter().zip(songs.iter()) {
+        let font = SongFonts::new(fonts()?, fallback_fonts()?, &vec![a, t]);
+        draw_text_mut(
+            &mut img,
+            Rgba([255, 255, 255, 255]),
+            artistxy.0,
+            artistxy.1,
+            if check_for_cyrillic(a) { fallbackscale } else { scale },
+            &font.artist.bold,
+            &trunc(a, 11)
+        );
+        draw_text_mut(
+            &mut img,
+            Rgba([255, 255, 255, 255]),
+            titlexy.0,
+            titlexy.1,
+            if check_for_cyrillic(t) { fallbackscale } else { scale },
+            &font.name.bold,
+            &trunc(t, 14)
+        );
+        artistxy.1 += 56;
+        titlexy.1 += 56;
+    }
+    draw_text_mut(
+        &mut img, 
+        Rgba([255, 255, 255, 255]), 
+        totalxy.0, 
+        totalxy.1, 
+        totalscale, 
+        &fonts()?.extra_bold, 
+        &total_str
+    );
+
+    Ok(img)
 }
