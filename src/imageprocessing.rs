@@ -1,17 +1,20 @@
-use std::error::Error;
-use image::{imageops::{self, FilterType}, DynamicImage, ImageReader, Rgba};
-use imageproc::drawing::{draw_text_mut, text_size};
+use crate::calculations::GenreMonths;
 use ab_glyph::{FontRef, PxScale};
+use aho_corasick::AhoCorasick;
 use chrono::{TimeZone, Utc};
+use image::{
+    imageops::{self, FilterType},
+    DynamicImage, ImageReader, Rgba,
+};
+use imageproc::drawing::{draw_text_mut, text_size};
 use itertools::Itertools;
 use rand::seq::SliceRandom;
-use serde_json::{json, Value};
-use thousands::Separable;
-use aho_corasick::AhoCorasick;
-use titlecase::titlecase;
 use regex::Regex;
+use serde_json::{json, Value};
+use std::error::Error;
+use thousands::Separable;
+use titlecase::titlecase;
 use unicode_truncate::UnicodeTruncateStr;
-use crate::calculations::GenreMonths;
 
 #[derive(Clone)]
 struct SpotifyFont<'a> {
@@ -41,41 +44,70 @@ struct SongFonts<'a> {
 }
 
 impl<'b> SongFonts<'b> {
-    pub fn new(font: SpotifyFont<'b>, fallback_font: SpotifyFont<'b>, strs: &Vec<&str>) -> Self {
+    pub fn new(font: SpotifyFont<'b>, fallback_font: SpotifyFont<'b>, strs: &[&str]) -> Self {
         Self {
-            artist: if check_for_cyrillic(strs[0]) { fallback_font.clone() } else { font.clone() },
-            name: if check_for_cyrillic(strs[1]) { fallback_font.clone() } else { font.clone() },
-            number: font.clone()
+            artist: if check_for_cyrillic(strs[0]) {
+                fallback_font.clone()
+            } else {
+                font.clone()
+            },
+            name: if check_for_cyrillic(strs[1]) {
+                fallback_font.clone()
+            } else {
+                font.clone()
+            },
+            number: font.clone(),
         }
     }
 }
 
-fn calculate_text_centre(img: &DynamicImage, scale: PxScale, font: &FontRef, text: &str) -> (i32, i32) {
+fn calculate_text_centre(
+    img: &DynamicImage,
+    scale: PxScale,
+    font: &FontRef,
+    text: &str,
+) -> (i32, i32) {
     let text_size = text_size(scale, font, text);
     let image_size = (img.width(), img.height());
-    let txtx: i32 = (image_size.0 / 2).wrapping_sub(text_size.0 / 2).try_into().unwrap_or(0);
-    let txty: i32 = (image_size.1 / 2).wrapping_sub(text_size.1 / 2).try_into().unwrap_or(0);
+    let txtx: i32 = (image_size.0 / 2)
+        .wrapping_sub(text_size.0 / 2)
+        .try_into()
+        .unwrap_or(0);
+    let txty: i32 = (image_size.1 / 2)
+        .wrapping_sub(text_size.1 / 2)
+        .try_into()
+        .unwrap_or(0);
 
     (txtx, txty)
 }
 
-fn batch_draw_text(strs: Vec<&str>, xys: Vec<(i32, i32)>, img: &mut DynamicImage, scale: PxScale, fonts: Vec<&FontRef>, offset: (i32, i32)) {
+fn batch_draw_text(
+    strs: Vec<&str>,
+    xys: Vec<(i32, i32)>,
+    img: &mut DynamicImage,
+    scale: PxScale,
+    fonts: Vec<&FontRef>,
+    offset: (i32, i32),
+) {
     for i in 0..strs.len() {
         draw_text_mut(
-            img, 
-            Rgba([255, 255, 255, 255]), 
-            xys[i].0 + offset.0, 
-            xys[i].1 + offset.1, 
-            scale, 
-            fonts[i], 
-            strs[i]
+            img,
+            Rgba([255, 255, 255, 255]),
+            xys[i].0 + offset.0,
+            xys[i].1 + offset.1,
+            scale,
+            fonts[i],
+            strs[i],
         );
     }
 }
 
-fn split_adv(s: &str) -> Vec<String>{
+fn split_adv(s: &str) -> Vec<String> {
     let re = Regex::new(r"\w+|[^\w]").unwrap();
-    let matches = re.find_iter(s).map(|m| m.as_str().to_string()).collect::<Vec<String>>();
+    let matches = re
+        .find_iter(s)
+        .map(|m| m.as_str().to_string())
+        .collect::<Vec<String>>();
     matches
 }
 
@@ -84,7 +116,7 @@ fn vec_substring(vec: &Vec<&String>, substr: &str) -> bool {
     for i in vec {
         if i.contains(substr) {
             ret = true;
-            break
+            break;
         }
     }
     ret
@@ -99,33 +131,31 @@ fn trunc(s: &str, to: usize) -> String {
 }
 
 fn fonts() -> Result<SpotifyFont<'static>, Box<dyn Error>> {
-    let sf = SpotifyFont::new(
-        vec![
-            FontRef::try_from_slice(include_bytes!("../fonts/SpotifyMix-Regular.ttf"))?,
-            FontRef::try_from_slice(include_bytes!("../fonts/SpotifyMix-Medium.ttf"))?,
-            FontRef::try_from_slice(include_bytes!("../fonts/SpotifyMix-Bold.ttf"))?,
-            FontRef::try_from_slice(include_bytes!("../fonts/SpotifyMix-Extrabold.ttf"))?,
-            FontRef::try_from_slice(include_bytes!("../fonts/SpotifyMixNarrow-Black.ttf"))?,
-        ]
-    );
+    let sf = SpotifyFont::new(vec![
+        FontRef::try_from_slice(include_bytes!("../fonts/SpotifyMix-Regular.ttf"))?,
+        FontRef::try_from_slice(include_bytes!("../fonts/SpotifyMix-Medium.ttf"))?,
+        FontRef::try_from_slice(include_bytes!("../fonts/SpotifyMix-Bold.ttf"))?,
+        FontRef::try_from_slice(include_bytes!("../fonts/SpotifyMix-Extrabold.ttf"))?,
+        FontRef::try_from_slice(include_bytes!("../fonts/SpotifyMixNarrow-Black.ttf"))?,
+    ]);
     Ok(sf)
 }
 
 fn fallback_fonts() -> Result<SpotifyFont<'static>, Box<dyn Error>> {
-    let sf = SpotifyFont::new(
-        vec![
-            FontRef::try_from_slice(include_bytes!("../fonts/FluidSans-Light.ttf"))?,
-            FontRef::try_from_slice(include_bytes!("../fonts/FluidSans-Regular.ttf"))?,
-            FontRef::try_from_slice(include_bytes!("../fonts/FluidSans-Bold.ttf"))?,
-            FontRef::try_from_slice(include_bytes!("../fonts/FluidSans-Black.ttf"))?,
-            FontRef::try_from_slice(include_bytes!("../fonts/SpotifyMixNarrow-Black.ttf"))?,
-        ]
-    );
+    let sf = SpotifyFont::new(vec![
+        FontRef::try_from_slice(include_bytes!("../fonts/FluidSans-Light.ttf"))?,
+        FontRef::try_from_slice(include_bytes!("../fonts/FluidSans-Regular.ttf"))?,
+        FontRef::try_from_slice(include_bytes!("../fonts/FluidSans-Bold.ttf"))?,
+        FontRef::try_from_slice(include_bytes!("../fonts/FluidSans-Black.ttf"))?,
+        FontRef::try_from_slice(include_bytes!("../fonts/SpotifyMixNarrow-Black.ttf"))?,
+    ]);
     Ok(sf)
 }
 
 fn check_for_cyrillic(str: &str) -> bool {
-    let cyrillic_chars = (0x400..0x4ff).map(|x| char::from_u32(x).unwrap()).collect::<Vec<_>>();
+    let cyrillic_chars = (0x400..0x4ff)
+        .map(|x| char::from_u32(x).unwrap())
+        .collect::<Vec<_>>();
     let mut ret = false;
     for c in str.chars() {
         if cyrillic_chars.contains(&c) {
@@ -136,25 +166,31 @@ fn check_for_cyrillic(str: &str) -> bool {
     ret
 }
 
-pub fn minutes_listened(total: i64, busiest_day: i64, busiest_time: i64) -> Result<DynamicImage, Box<dyn Error>> {
+pub fn minutes_listened(
+    total: i64,
+    busiest_day: i64,
+    busiest_time: i64,
+) -> Result<DynamicImage, Box<dyn Error>> {
     let mut img = ImageReader::open("imgs/minuteslistened.png")?.decode()?;
     let fonts = fonts().unwrap();
     let totalscale = PxScale::from(290.0);
     let busiestscale = PxScale::from(50.0);
-    let busiest_day_string = Utc.timestamp_opt(busiest_day, 0).unwrap().format("%B %_d").to_string();
+    let busiest_day_string = Utc
+        .timestamp_opt(busiest_day, 0)
+        .unwrap()
+        .format("%B %_d")
+        .to_string();
     let total_str = total.separate_with_commas();
 
-    let totalc = calculate_text_centre(
-        &img, 
-        totalscale, 
-        &fonts.extra_bold, 
-        &total_str
-    );
+    let totalc = calculate_text_centre(&img, totalscale, &fonts.extra_bold, &total_str);
     let busiestc = calculate_text_centre(
-        &img, 
-        busiestscale, 
-        &fonts.medium, 
-        &format!("Biggest listening day: {} with {} minutes", busiest_day_string, busiest_time)
+        &img,
+        busiestscale,
+        &fonts.medium,
+        &format!(
+            "Biggest listening day: {} with {} minutes",
+            busiest_day_string, busiest_time
+        ),
     );
     let busiest_day_len = text_size(busiestscale, &fonts.extra_bold, &busiest_day_string);
     let busiest_time_len = text_size(busiestscale, &fonts.extra_bold, &busiest_time.to_string());
@@ -163,21 +199,30 @@ pub fn minutes_listened(total: i64, busiest_day: i64, busiest_time: i64) -> Resu
         text_size(busiestscale, &fonts.medium, " with "),
     );
 
-    let busiest_day_coords = (busiestc.0 + (busiest_str_len.0.0 as i32), busiestc.1);
-    let busiest_with_coords = (busiest_day_coords.0 + (busiest_day_len.0 as i32), busiest_day_coords.1);
-    let busiest_time_coords = (busiest_with_coords.0 + (busiest_str_len.1.0 as i32), busiest_with_coords.1);
-    let busiest_min_coords = (busiest_time_coords.0 + (busiest_time_len.0 as i32), busiest_time_coords.1);
+    let busiest_day_coords = (busiestc.0 + (busiest_str_len.0 .0 as i32), busiestc.1);
+    let busiest_with_coords = (
+        busiest_day_coords.0 + (busiest_day_len.0 as i32),
+        busiest_day_coords.1,
+    );
+    let busiest_time_coords = (
+        busiest_with_coords.0 + (busiest_str_len.1 .0 as i32),
+        busiest_with_coords.1,
+    );
+    let busiest_min_coords = (
+        busiest_time_coords.0 + (busiest_time_len.0 as i32),
+        busiest_time_coords.1,
+    );
 
     // draw total minutes
     // in official image text is offset from bottom by 378 / 2 px
     draw_text_mut(
-        &mut img, 
-        Rgba([255, 255, 255, 255]), 
-        totalc.0, 
-        totalc.1 - 189, 
-        totalscale, 
-        &fonts.extra_bold, 
-        &total_str
+        &mut img,
+        Rgba([255, 255, 255, 255]),
+        totalc.0,
+        totalc.1 - 189,
+        totalscale,
+        &fonts.extra_bold,
+        &total_str,
     );
     batch_draw_text(
         vec![
@@ -185,17 +230,17 @@ pub fn minutes_listened(total: i64, busiest_day: i64, busiest_time: i64) -> Resu
             &busiest_day_string,
             " with ",
             &busiest_time.to_string(),
-            " minutes"
-        ], 
+            " minutes",
+        ],
         vec![
             busiestc,
             busiest_day_coords,
             busiest_with_coords,
             busiest_time_coords,
-            busiest_min_coords
-        ], 
-        &mut img, 
-        busiestscale, 
+            busiest_min_coords,
+        ],
+        &mut img,
+        busiestscale,
         vec![
             &fonts.medium,
             &fonts.extra_bold,
@@ -203,13 +248,17 @@ pub fn minutes_listened(total: i64, busiest_day: i64, busiest_time: i64) -> Resu
             &fonts.extra_bold,
             &fonts.medium,
         ],
-        (0, 132)
+        (0, 132),
     );
 
     Ok(img)
 }
 
-pub fn top_song(name: String, scrobbles: i64, cover: DynamicImage) -> Result<DynamicImage, Box<dyn Error>> {
+pub fn top_song(
+    name: String,
+    scrobbles: i64,
+    cover: DynamicImage,
+) -> Result<DynamicImage, Box<dyn Error>> {
     let mut img = ImageReader::open("imgs/topsong.png")?.decode()?;
     let song_info = name.split(" - ").collect::<Vec<_>>();
     let fonts = SongFonts::new(fonts()?, fallback_fonts()?, &song_info);
@@ -225,25 +274,15 @@ pub fn top_song(name: String, scrobbles: i64, cover: DynamicImage) -> Result<Dyn
 
     // text centres
     // track name
-    let trackc = calculate_text_centre(
-        &img, 
-        songscale, 
-        &fonts.name.extra_bold, 
-        song_info[1]
-    );
+    let trackc = calculate_text_centre(&img, songscale, &fonts.name.extra_bold, song_info[1]);
     // artist name
-    let artistc = calculate_text_centre(
-        &img, 
-        artistscale, 
-        &fonts.artist.regular, 
-        song_info[0]
-    );
+    let artistc = calculate_text_centre(&img, artistscale, &fonts.artist.regular, song_info[0]);
     // scrobbles
     let scrobblesc = calculate_text_centre(
-        &img, 
-        scrobblescale, 
-        &fonts.number.regular, 
-        &scrobbles.to_string()
+        &img,
+        scrobblescale,
+        &fonts.number.regular,
+        &scrobbles.to_string(),
     );
 
     let scaled_cover = cover.resize(coverscale.0, coverscale.1, FilterType::CatmullRom);
@@ -255,7 +294,7 @@ pub fn top_song(name: String, scrobbles: i64, cover: DynamicImage) -> Result<Dyn
         trackc.1 + 230,
         songscale,
         &fonts.name.extra_bold,
-        song_info[1]
+        song_info[1],
     );
     draw_text_mut(
         &mut img,
@@ -264,7 +303,7 @@ pub fn top_song(name: String, scrobbles: i64, cover: DynamicImage) -> Result<Dyn
         artistc.1 + 336,
         artistscale,
         &fonts.artist.regular,
-        song_info[0]
+        song_info[0],
     );
     draw_text_mut(
         &mut img,
@@ -273,12 +312,14 @@ pub fn top_song(name: String, scrobbles: i64, cover: DynamicImage) -> Result<Dyn
         scrobblesc.1 + 529,
         scrobblescale,
         &fonts.number.extra_bold,
-        &scrobbles.to_string()
+        &scrobbles.to_string(),
     );
     Ok(img)
 }
 
-pub fn top_5_songs(songs: Vec<(&String, (DynamicImage, &i32))>) -> Result<DynamicImage, Box<dyn Error>> {
+pub fn top_5_songs(
+    songs: Vec<(&String, (DynamicImage, &i32))>,
+) -> Result<DynamicImage, Box<dyn Error>> {
     let mut img = ImageReader::open("imgs/top5songs.png")?.decode()?;
     let scale = PxScale::from(48.0);
     let mut titlexy = (412, 585);
@@ -288,23 +329,28 @@ pub fn top_5_songs(songs: Vec<(&String, (DynamicImage, &i32))>) -> Result<Dynami
     for song in songs {
         let song_info = song.0.split(" - ").collect::<Vec<_>>();
         let fonts = SongFonts::new(fonts()?, fallback_fonts()?, &song_info);
-        let scaled_cover = song.1.0.resize(coverscale.0, coverscale.1, FilterType::CatmullRom);
+        let scaled_cover = song
+            .1
+             .0
+            .resize(coverscale.0, coverscale.1, FilterType::CatmullRom);
         imageops::overlay(&mut img, &scaled_cover, coverxy.0, coverxy.1);
-        draw_text_mut(&mut img,
+        draw_text_mut(
+            &mut img,
             Rgba([0, 0, 0, 255]),
             titlexy.0,
             titlexy.1,
             scale,
             &fonts.name.bold,
-            song_info[1]
+            song_info[1],
         );
-        draw_text_mut(&mut img,
+        draw_text_mut(
+            &mut img,
             Rgba([0, 0, 0, 255]),
             artistxy.0,
             artistxy.1,
             scale,
             &fonts.artist.regular,
-            song_info[0]
+            song_info[0],
         );
         titlexy.1 += 240;
         artistxy.1 += 240;
@@ -314,7 +360,7 @@ pub fn top_5_songs(songs: Vec<(&String, (DynamicImage, &i32))>) -> Result<Dynami
 }
 
 pub fn genre_evolution(months: GenreMonths) -> Result<Vec<DynamicImage>, Box<dyn Error>> {
-    let imgs = vec![
+    let imgs = [
         ImageReader::open("imgs/genreevolution1.png")?.decode()?,
         ImageReader::open("imgs/genreevolution2.png")?.decode()?,
         ImageReader::open("imgs/genreevolution3.png")?.decode()?,
@@ -333,34 +379,27 @@ pub fn genre_evolution(months: GenreMonths) -> Result<Vec<DynamicImage>, Box<dyn
     let artistsscale = PxScale::from(48.0);
     let fallbackscale = PxScale::from(45.0);
 
+    #[allow(clippy::needless_range_loop)]
     for i in 0..=2 {
         let mut img = imgs[i].clone();
         let genrehashmap = months.clone().get(i);
         let artists = genrehashmap.keys().collect::<Vec<&String>>();
-        let top_artists = format!("Listening to artists like {}, {}, and {}", artists[0], artists[1], artists[2]);
-        let top_artists_wrapped = textwrap::wrap(
-            &top_artists,
-            54
+        let top_artists = format!(
+            "Listening to artists like {}, {}, and {}",
+            artists[0], artists[1], artists[2]
         );
+        let top_artists_wrapped = textwrap::wrap(&top_artists, 54);
 
         let mut genres = genrehashmap
             .values()
             .collect::<Vec<&Vec<Value>>>()
             .iter()
-            .map(
-                |x|
-                x
-                    .choose(&mut rng)
-                    .unwrap_or(&json!(""))
-                    .to_string()
-            )
-            .map(
-                |x|
-                ac
-                    .replace_all(&x, &["", ""])
+            .map(|x| x.choose(&mut rng).unwrap_or(&json!("")).to_string())
+            .map(|x| {
+                ac.replace_all(&x, &["", ""])
                     .trim_matches(&['\"', ' '])
                     .to_string()
-            )
+            })
             .map(|x| titlecase(&x))
             .filter(|x| !existing_genres.contains(x))
             .filter(|x| !x.is_empty())
@@ -369,17 +408,30 @@ pub fn genre_evolution(months: GenreMonths) -> Result<Vec<DynamicImage>, Box<dyn
             .cloned()
             .collect::<Vec<String>>();
         if genres.len() < 2 {
-            let nonexisting = existing_genres.iter().filter(|x| !genres.contains(x)).collect::<Vec<&String>>();
+            let nonexisting = existing_genres
+                .iter()
+                .filter(|x| !genres.contains(x))
+                .collect::<Vec<&String>>();
             genres.push(nonexisting.choose(&mut rng).unwrap().to_string());
         }
         existing_genres.append(&mut genres.clone());
-        existing_genres = existing_genres.iter().unique().cloned().collect::<Vec<String>>();
+        existing_genres = existing_genres
+            .iter()
+            .unique()
+            .cloned()
+            .collect::<Vec<String>>();
 
-        let monthc = calculate_text_centre(&img, monthscale, &font.medium, &format!("My {}", months.clone().get_month_string(i)));
-        let genres_wrapped = vec![
+        let monthc = calculate_text_centre(
+            &img,
+            monthscale,
+            &font.medium,
+            &format!("My {}", months.clone().get_month_string(i)),
+        );
+        let genres_wrapped = [
             textwrap::wrap(&genres[0], 15),
             textwrap::wrap(&genres[1], 15),
-        ].concat();
+        ]
+        .concat();
 
         draw_text_mut(
             &mut img,
@@ -388,7 +440,7 @@ pub fn genre_evolution(months: GenreMonths) -> Result<Vec<DynamicImage>, Box<dyn
             519,
             monthscale,
             &font.medium,
-            &format!("My {}", months.clone().get_month_string(i))
+            &format!("My {}", months.clone().get_month_string(i)),
         );
         let mut genrelinexy = (0, 593);
         for i in &genres_wrapped {
@@ -400,7 +452,7 @@ pub fn genre_evolution(months: GenreMonths) -> Result<Vec<DynamicImage>, Box<dyn
                 genrelinexy.1,
                 genrescale,
                 &font.narrow,
-                i
+                i,
             );
             genrelinexy.1 += 250;
         }
@@ -408,27 +460,31 @@ pub fn genre_evolution(months: GenreMonths) -> Result<Vec<DynamicImage>, Box<dyn
         let mut artistlinexy = (0, genrelinexy.1 + 50);
         for i in &top_artists_wrapped {
             let words = split_adv(i);
-            artistlinexy.0 = calculate_text_centre(&img, fallbackscale, &fallback_fonts()?.medium, i).0;
+            artistlinexy.0 =
+                calculate_text_centre(&img, fallbackscale, &fallback_fonts()?.medium, i).0;
             for j in words {
-                let f = 
-                    if vec_substring(&artists, &j) {
-                        if check_for_cyrillic(&j) {
-                            fallback_fonts()?.bold
-                        } else {
-                            fonts()?.bold
-                        }
+                let f = if vec_substring(&artists, &j) {
+                    if check_for_cyrillic(&j) {
+                        fallback_fonts()?.bold
                     } else {
-                        fonts()?.medium
-                    };
-                let s = if check_for_cyrillic(&j) { fallbackscale } else { artistsscale };
+                        fonts()?.bold
+                    }
+                } else {
+                    fonts()?.medium
+                };
+                let s = if check_for_cyrillic(&j) {
+                    fallbackscale
+                } else {
+                    artistsscale
+                };
                 draw_text_mut(
-                    &mut img, 
+                    &mut img,
                     Rgba([255, 255, 255, 255]),
-                    artistlinexy.0, 
-                    artistlinexy.1, 
-                    s, 
-                    &f, 
-                    &j
+                    artistlinexy.0,
+                    artistlinexy.1,
+                    s,
+                    &f,
+                    &j,
                 );
                 artistlinexy.0 += text_size(s, &f, &j).0 as i32;
             }
@@ -440,7 +496,12 @@ pub fn genre_evolution(months: GenreMonths) -> Result<Vec<DynamicImage>, Box<dyn
     Ok(modified_imgs)
 }
 
-pub fn final_image(total: i64, songs: Vec<&str>, artists: Vec<&str>, cover: DynamicImage) -> Result<DynamicImage, Box<dyn Error>> {
+pub fn final_image(
+    total: i64,
+    songs: Vec<&str>,
+    artists: Vec<&str>,
+    cover: DynamicImage,
+) -> Result<DynamicImage, Box<dyn Error>> {
     let mut img = ImageReader::open("imgs/final.png")?.decode()?;
     let fallbackscale = PxScale::from(59.0);
     let scale = PxScale::from(64.0);
@@ -456,36 +517,44 @@ pub fn final_image(total: i64, songs: Vec<&str>, artists: Vec<&str>, cover: Dyna
     let mut titlexy = (606, 1102);
     let totalxy = (80, 1516);
     for (a, t) in artists.iter().zip(songs.iter()) {
-        let font = SongFonts::new(fonts()?, fallback_fonts()?, &vec![a, t]);
+        let font = SongFonts::new(fonts()?, fallback_fonts()?, &[a, t]);
         draw_text_mut(
             &mut img,
             Rgba([255, 255, 255, 255]),
             artistxy.0,
             artistxy.1,
-            if check_for_cyrillic(a) { fallbackscale } else { scale },
+            if check_for_cyrillic(a) {
+                fallbackscale
+            } else {
+                scale
+            },
             &font.artist.bold,
-            &trunc(a, 11)
+            &trunc(a, 11),
         );
         draw_text_mut(
             &mut img,
             Rgba([255, 255, 255, 255]),
             titlexy.0,
             titlexy.1,
-            if check_for_cyrillic(t) { fallbackscale } else { scale },
+            if check_for_cyrillic(t) {
+                fallbackscale
+            } else {
+                scale
+            },
             &font.name.bold,
-            &trunc(t, 14)
+            &trunc(t, 14),
         );
         artistxy.1 += 56;
         titlexy.1 += 56;
     }
     draw_text_mut(
-        &mut img, 
-        Rgba([255, 255, 255, 255]), 
-        totalxy.0, 
-        totalxy.1, 
-        totalscale, 
-        &fonts()?.extra_bold, 
-        &total_str
+        &mut img,
+        Rgba([255, 255, 255, 255]),
+        totalxy.0,
+        totalxy.1,
+        totalscale,
+        &fonts()?.extra_bold,
+        &total_str,
     );
 
     Ok(img)
