@@ -192,8 +192,8 @@ async fn calculate_top_genres(
                 artist_scrobbles[&t.artist.name] =
                     json!(artist_scrobbles[&t.artist.name].as_i64().unwrap_or(0) + 1);
             }
-            Err(e) => {
-                println!("error: {:?}", e);
+            Err(_e) => {
+                //println!("error: {:?}", e);
             }
         }
     }
@@ -224,7 +224,7 @@ pub async fn calculate_year(
     let days_in_year = if now.year() % 4 == 0 { 365 } else { 364 };
     let seconds_in_day = 24 * 60 * 60;
     let mut days: HashMap<i64, i64> = HashMap::with_capacity(days_in_year as usize);
-    for i in tqdm(1..days_in_year) {
+    for i in 1..days_in_year {
         let from_ts = yearago + (i * seconds_in_day);
         let to_ts = yearago + ((i + 1) * seconds_in_day);
         let time =
@@ -247,7 +247,7 @@ pub async fn calculate_genre_months(
     // january, april, august
     let mut months = GenreMonths::new();
 
-    for i in tqdm(0..3) {
+    for i in 0..3 {
         let from_ts = yearago
             .checked_add_months(Months::new(i * 3))
             .unwrap()
