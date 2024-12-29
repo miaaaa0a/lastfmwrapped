@@ -63,12 +63,8 @@ impl Default for GenreMonths {
 
 fn load_cache(ctype: CacheType) -> Value {
     let cache_text = match ctype {
-        CacheType::Duration => {
-            fs::read_to_string("duration.json").unwrap_or("{}".to_string())
-        }
-        CacheType::Genre => {
-            fs::read_to_string("genre.json").unwrap_or("{}".to_string())
-        }
+        CacheType::Duration => fs::read_to_string("duration.json").unwrap_or("{}".to_string()),
+        CacheType::Genre => fs::read_to_string("genre.json").unwrap_or("{}".to_string()),
     };
     let cache: Value = serde_json::from_str(&cache_text).unwrap();
     cache
@@ -112,7 +108,7 @@ pub fn largest_value(v: Value) -> Vec<String> {
 }
 
 pub fn sort_value(v: Value) -> Vec<(String, String)> {
-    let mut vvec = Vec::with_capacity(v.as_object().unwrap().len());
+    let mut vvec = Vec::new();
     for (i, j) in v.as_object().unwrap() {
         vvec.push((i.clone(), j.to_string()));
     }
@@ -190,8 +186,7 @@ async fn calculate_top_genres(
             Ok(t) => {
                 if cached_genres[&t.artist.name] == Value::Null {
                     let artist = &t.artist.name.split(&[';', ',']).collect::<Vec<&str>>()[0];
-                    let genres =
-                        spotify::find_artist_genres(&spotify_client, artist).await;
+                    let genres = spotify::find_artist_genres(&spotify_client, artist).await;
                     cached_genres[&t.artist.name] = genres;
                 }
                 artist_scrobbles[&t.artist.name] =

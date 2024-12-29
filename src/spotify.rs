@@ -40,11 +40,14 @@ pub async fn find_song_duration(c: &ClientCredsSpotify, q: &str, name: &str) -> 
 }
 
 pub async fn find_artist_genres(c: &ClientCredsSpotify, q: &str) -> Value {
-    let search_result = serde_json::to_value(
-        c.search(q, SearchType::Artist, None, None, Some(1), None)
+    let search_result = serde_json::to_value(loop {
+        if let Ok(result) = c
+            .search(q, SearchType::Artist, None, None, Some(1), None)
             .await
-            .unwrap(),
-    )
+        {
+            break result;
+        }
+    })
     .unwrap();
     return match search_result["artists"]["items"][0]["name"]
         .as_str()
@@ -63,11 +66,14 @@ pub async fn find_artist_genres(c: &ClientCredsSpotify, q: &str) -> Value {
 }
 
 pub async fn find_song_cover(c: &ClientCredsSpotify, q: &str, name: &str) -> Value {
-    let search_result = serde_json::to_value(
-        c.search(q, SearchType::Track, None, None, Some(1), None)
+    let search_result = serde_json::to_value(loop {
+        if let Ok(result) = c
+            .search(q, SearchType::Track, None, None, Some(1), None)
             .await
-            .unwrap(),
-    )
+        {
+            break result;
+        }
+    })
     .unwrap();
     //println!("{} - {}", search_result["tracks"]["items"][0]["artists"][0]["name"], search_result["tracks"]["items"][0]["name"]);
     return match search_result["tracks"]["items"][0]["name"]
@@ -87,11 +93,14 @@ pub async fn find_song_cover(c: &ClientCredsSpotify, q: &str, name: &str) -> Val
 }
 
 pub async fn find_artist_icon(c: &ClientCredsSpotify, q: &str) -> Value {
-    let search_result = serde_json::to_value(
-        c.search(q, SearchType::Artist, None, None, Some(1), None)
+    let search_result = serde_json::to_value(loop {
+        if let Ok(result) = c
+            .search(q, SearchType::Artist, None, None, Some(1), None)
             .await
-            .unwrap(),
-    )
+        {
+            break result;
+        }
+    })
     .unwrap();
     if search_result["artists"]["items"][0]["name"]
         .as_str()

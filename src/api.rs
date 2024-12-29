@@ -156,8 +156,7 @@ pub async fn final_image(Path((username, minutes)): Path<(String, i64)>) -> Json
         .map(|x| x.0.as_str())
         .collect::<Vec<&str>>();
 
-    let icon_info =
-        spotify::find_artist_icon(&spotify_client, top_artist_names[0]).await;
+    let icon_info = spotify::find_artist_icon(&spotify_client, top_artist_names[0]).await;
     let icon_url = icon_info["url"].as_str().unwrap_or("").trim_matches('\"');
     let icon = reqwest::get(icon_url).await.unwrap().bytes().await.unwrap();
     let icon_reader = ImageReader::new(Cursor::new(&icon))
@@ -166,7 +165,6 @@ pub async fn final_image(Path((username, minutes)): Path<(String, i64)>) -> Json
     let icon_img = icon_reader.decode().unwrap();
 
     let img =
-        imageprocessing::final_image(minutes, top_track_names, top_artist_names, icon_img)
-            .unwrap();
+        imageprocessing::final_image(minutes, top_track_names, top_artist_names, icon_img).unwrap();
     Json(img_to_response(img))
 }
