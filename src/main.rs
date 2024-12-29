@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .route("/api/topsong/:username", get(api::top_song))
         .route("/api/top5songs/:username", get(api::top_5_songs))
         .route("/api/genreevolution/:username", get(api::genre_evolution))
-        .route("/api/finalimage/:username", get(api::final_image))
+        .route("/api/finalimage/:username/:minutes", get(api::final_image))
         .layer(cors);
     let addr = SocketAddr::from(([127, 0, 0, 1], 8000));
     let tcp = TcpListener::bind(&addr).await?;

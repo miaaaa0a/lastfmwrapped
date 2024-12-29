@@ -17,6 +17,14 @@ fn img_to_response(img: DynamicImage) -> Value {
     json!({ "image": b64 })
 }
 
+fn img_mins_to_response(img: DynamicImage, minutes: i64) -> Value {
+    let mut buffer = Cursor::new(Vec::new());
+    let _ = img.write_to(&mut buffer, ImageFormat::Png);
+    let encoded_image = buffer.get_ref().clone();
+    let b64 = STANDARD.encode(encoded_image);
+    json!({ "image": b64, "minutes": minutes })
+}
+
 fn imgs_to_response(imgs: Vec<DynamicImage>) -> Value {
     let mut encoded = Vec::with_capacity(imgs.capacity());
     for i in imgs {
@@ -39,7 +47,7 @@ pub async fn minutes_listened(Path(username): Path<String>) -> Json<Value> {
     let busiest_time = (busiest[1] / 1000) / 60;
 
     let img = imageprocessing::minutes_listened(total_minutes, busiest[0], busiest_time).unwrap();
-    Json(img_to_response(img))
+    Json(img_mins_to_response(img, total_minutes))
 }
 
 pub async fn top_song(Path(username): Path<String>) -> Json<Value> {
@@ -126,13 +134,9 @@ pub async fn genre_evolution(Path(username): Path<String>) -> Json<Value> {
     Json(imgs_to_response(imgs))
 }
 
-pub async fn final_image(Path(username): Path<String>) -> Json<Value> {
+pub async fn final_image(Path((username, minutes)): Path<(String, i64)>) -> Json<Value> {
     println!("{}", username);
-    let lfm_client = lfm::init_client(&username);
     let spotify_client = spotify::auth().await;
-
-    let total = calculate_year(lfm_client, &spotify_client).await;
-    let total_minutes = ((total.values().sum::<i64>()) / 1000) / 60;
 
     let top_tracks = lfm::fetch_top_5_tracks(&username).await;
     let mut top_tracks_sorted = top_tracks.iter().collect::<Vec<_>>();
@@ -162,7 +166,7 @@ pub async fn final_image(Path(username): Path<String>) -> Json<Value> {
     let icon_img = icon_reader.decode().unwrap();
 
     let img =
-        imageprocessing::final_image(total_minutes, top_track_names, top_artist_names, icon_img)
+        imageprocessing::final_image(minutes, top_track_names, top_artist_names, icon_img)
             .unwrap();
     Json(img_to_response(img))
 }
