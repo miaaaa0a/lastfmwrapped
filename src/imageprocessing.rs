@@ -152,13 +152,17 @@ fn fallback_fonts() -> Result<SpotifyFont<'static>, Box<dyn Error>> {
     Ok(sf)
 }
 
+// not cyrillic, it checks if the text isnt latin but im too lazy to rename
 fn check_for_cyrillic(str: &str) -> bool {
-    let cyrillic_chars = (0x400..0x4ff)
+    let latin_chars = (0x0020..=0x024F)
+        .map(|x| char::from_u32(x).unwrap())
+        .collect::<Vec<_>>();
+    let punct = (0x2000..=0x206F)
         .map(|x| char::from_u32(x).unwrap())
         .collect::<Vec<_>>();
     let mut ret = false;
     for c in str.chars() {
-        if cyrillic_chars.contains(&c) {
+        if !latin_chars.contains(&c) && !punct.contains(&c) {
             ret = true;
             break;
         }
