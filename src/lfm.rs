@@ -119,7 +119,13 @@ pub async fn user_processable(username: &String) -> Result<(), UnprocessableErro
         if resp["error"].as_i64().unwrap_or(0) == 6 {
             return Err(UnprocessableErrors::UserNotFound);
         }
-    } else if resp["playcount"].to_string().parse::<i32>().unwrap_or(0) < 365 {
+    } else if resp["user"]["playcount"]
+        .as_str()
+        .unwrap()
+        .parse::<i64>()
+        .unwrap_or(0)
+        < 365
+    {
         return Err(UnprocessableErrors::NotEnoughScrobbles);
     }
 
