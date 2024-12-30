@@ -1,7 +1,19 @@
 use dotenvy;
 use lastfm::Client;
 use serde_json::{json, Value};
-use std::{collections::HashMap, env};
+use std::{collections::HashMap, env, fmt};
+
+#[derive(Debug)]
+pub enum UnprocessableErrors {
+    UserNotFound,
+    NotEnoughScrobbles,
+}
+
+impl fmt::Display for UnprocessableErrors {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
 
 fn get_api_key() -> String {
     let _ = dotenvy::dotenv();
@@ -88,4 +100,28 @@ pub async fn fetch_top_5_artists(username: &String) -> HashMap<String, i32> {
         artists.insert(artist, playcount);
     }
     artists
+}
+
+pub async fn user_processable(username: &String) -> Result<(), UnprocessableErrors> {
+    let key = get_api_key();
+    let request_url = format!(
+        "http://ws.audioscrobbler.com/2.0/?method=user.getinfo&user={}&api_key={}&format=json",
+        username, key
+    );
+    let resp_text = reqwest::get(request_url)
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    let resp: Value = serde_json::from_str(&resp_text).unwrap();
+    if resp["error"] != Value::Null {
+        if resp["error"].as_i64().unwrap_or(0) == 6 {
+            return Err(UnprocessableErrors::UserNotFound);
+        }
+    } else if resp["playcount"].to_string().parse::<i32>().unwrap_or(0) < 365 {
+        return Err(UnprocessableErrors::NotEnoughScrobbles);
+    }
+
+    Ok(())
 }

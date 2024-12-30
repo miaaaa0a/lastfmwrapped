@@ -36,6 +36,10 @@ fn imgs_to_response(imgs: Vec<DynamicImage>) -> Value {
     json!({ "images": encoded })
 }
 
+fn processable_response(processable: bool, error: &str) -> Value {
+    json!({"processable": processable, "error": error})
+}
+
 pub async fn minutes_listened(Path(username): Path<String>) -> Json<Value> {
     println!("{}", username);
     let lfm_client = lfm::init_client(&username);
@@ -167,4 +171,11 @@ pub async fn final_image(Path((username, minutes)): Path<(String, i64)>) -> Json
     let img =
         imageprocessing::final_image(minutes, top_track_names, top_artist_names, icon_img).unwrap();
     Json(img_to_response(img))
+}
+
+pub async fn user_processable(Path(username): Path<String>) -> Json<Value> {
+    match lfm::user_processable(&username).await {
+        Ok(_) => Json(processable_response(true, "")),
+        Err(e) => Json(processable_response(false, &e.to_string())),
+    }
 }

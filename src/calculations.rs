@@ -6,7 +6,6 @@ use lastfm::Client;
 use rspotify::ClientCredsSpotify;
 use serde_json::{json, Value};
 use std::{collections::HashMap, error::Error, fs};
-use tqdm::tqdm;
 
 enum CacheType {
     Duration,
