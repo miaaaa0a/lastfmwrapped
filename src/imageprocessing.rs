@@ -143,10 +143,10 @@ fn fonts() -> Result<SpotifyFont<'static>, Box<dyn Error>> {
 
 fn fallback_fonts() -> Result<SpotifyFont<'static>, Box<dyn Error>> {
     let sf = SpotifyFont::new(vec![
-        FontRef::try_from_slice(include_bytes!("../fonts/FluidSans-Light.ttf"))?,
-        FontRef::try_from_slice(include_bytes!("../fonts/FluidSans-Regular.ttf"))?,
-        FontRef::try_from_slice(include_bytes!("../fonts/FluidSans-Bold.ttf"))?,
-        FontRef::try_from_slice(include_bytes!("../fonts/FluidSans-Black.ttf"))?,
+        FontRef::try_from_slice(include_bytes!("../fonts/NotoSansJP-Light.otf"))?,
+        FontRef::try_from_slice(include_bytes!("../fonts/NotoSansJP-Regular.otf"))?,
+        FontRef::try_from_slice(include_bytes!("../fonts/NotoSansJP-Bold.otf"))?,
+        FontRef::try_from_slice(include_bytes!("../fonts/NotoSansJP-Black.otf"))?,
         FontRef::try_from_slice(include_bytes!("../fonts/SpotifyMixNarrow-Black.ttf"))?,
     ]);
     Ok(sf)
@@ -381,7 +381,7 @@ pub fn genre_evolution(months: GenreMonths) -> Result<Vec<DynamicImage>, Box<dyn
     let genrescale = PxScale::from(288.0);
     let monthscale = PxScale::from(62.0);
     let artistsscale = PxScale::from(48.0);
-    let fallbackscale = PxScale::from(45.0);
+    let fallbackscale = PxScale::from(48.0);
 
     #[allow(clippy::needless_range_loop)]
     for i in 0..=2 {
@@ -412,11 +412,7 @@ pub fn genre_evolution(months: GenreMonths) -> Result<Vec<DynamicImage>, Box<dyn
             .cloned()
             .collect::<Vec<String>>();
         if genres.len() < 2 {
-            let nonexisting = existing_genres
-                .iter()
-                .filter(|x| !genres.contains(x))
-                .collect::<Vec<&String>>();
-            genres.push(nonexisting.choose(&mut rng).unwrap().to_string());
+            genres.push(existing_genres.choose(&mut rng).unwrap().to_string());
         }
         existing_genres.append(&mut genres.clone());
         existing_genres = existing_genres
@@ -507,7 +503,7 @@ pub fn final_image(
     cover: DynamicImage,
 ) -> Result<DynamicImage, Box<dyn Error>> {
     let mut img = ImageReader::open("imgs/final.png")?.decode()?;
-    let fallbackscale = PxScale::from(59.0);
+    let fallbackscale = PxScale::from(64.0);
     let scale = PxScale::from(64.0);
     let totalscale = PxScale::from(130.0);
     let total_str = total.separate_with_commas();
