@@ -7,6 +7,7 @@ use std::{collections::HashMap, env, fmt};
 pub enum UnprocessableErrors {
     UserNotFound,
     NotEnoughScrobbles,
+    PrivateProfile,
 }
 
 impl fmt::Display for UnprocessableErrors {
@@ -104,22 +105,22 @@ pub async fn fetch_top_5_artists(username: &String) -> HashMap<String, i32> {
 
 pub async fn user_processable(username: &String) -> Result<(), UnprocessableErrors> {
     let key = get_api_key();
-    let request_url = format!(
+    let getinfo_url = format!(
         "http://ws.audioscrobbler.com/2.0/?method=user.getinfo&user={}&api_key={}&format=json",
         username, key
     );
-    let resp_text = reqwest::get(request_url)
+    let getinfo_text = reqwest::get(getinfo_url)
         .await
         .unwrap()
         .text()
         .await
         .unwrap();
-    let resp: Value = serde_json::from_str(&resp_text).unwrap();
-    if resp["error"] != Value::Null {
-        if resp["error"].as_i64().unwrap_or(0) == 6 {
+    let getinfo: Value = serde_json::from_str(&getinfo_text).unwrap();
+    if getinfo["error"] != Value::Null {
+        if getinfo["error"].as_i64().unwrap_or(0) == 6 {
             return Err(UnprocessableErrors::UserNotFound);
         }
-    } else if resp["user"]["playcount"]
+    } else if getinfo["user"]["playcount"]
         .as_str()
         .unwrap()
         .parse::<i64>()
@@ -127,6 +128,22 @@ pub async fn user_processable(username: &String) -> Result<(), UnprocessableErro
         < 365
     {
         return Err(UnprocessableErrors::NotEnoughScrobbles);
+    }
+
+    // cant check if users profile is private via the getinfo endpoint
+    let gettracks_url = format!(
+        "http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user={}&api_key={}&format=json",
+        username, key
+    );
+    let gettracks_text = reqwest::get(gettracks_url)
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    let gettracks: Value = serde_json::from_str(&gettracks_text).unwrap();
+    if gettracks["error"] != Value::Null && gettracks["error"].as_i64().unwrap_or(0) == 17 {
+        return Err(UnprocessableErrors::PrivateProfile);
     }
 
     Ok(())

@@ -2,7 +2,6 @@ use crate::{
     calculations::{calculate_genre_months, calculate_year, largest_value_hashmap},
     imageprocessing, lfm, spotify,
 };
-use axum::{extract::Path, Json};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use image::{DynamicImage, ImageFormat, ImageReader};
 use itertools::Itertools;
@@ -40,9 +39,10 @@ fn processable_response(processable: bool, error: &str) -> Value {
     json!({"processable": processable, "error": error})
 }
 
-pub async fn minutes_listened(Path(username): Path<String>) -> Json<Value> {
+#[get("/api/minuteslistened/<username>", format = "json")]
+pub async fn minutes_listened(username: &str) -> Value {
     println!("{}", username);
-    let lfm_client = lfm::init_client(&username);
+    let lfm_client = lfm::init_client(username);
     let spotify_client = spotify::auth().await;
 
     let total = calculate_year(lfm_client, &spotify_client).await;
@@ -51,10 +51,11 @@ pub async fn minutes_listened(Path(username): Path<String>) -> Json<Value> {
     let busiest_time = (busiest[1] / 1000) / 60;
 
     let img = imageprocessing::minutes_listened(total_minutes, busiest[0], busiest_time).unwrap();
-    Json(img_mins_to_response(img, total_minutes))
+    img_mins_to_response(img, total_minutes)
 }
 
-pub async fn top_song(Path(username): Path<String>) -> Json<Value> {
+#[get("/api/topsong/<username>", format = "json")]
+pub async fn top_song(username: String) -> Value {
     println!("{}", username);
     let spotify_client = spotify::auth().await;
 
@@ -89,10 +90,11 @@ pub async fn top_song(Path(username): Path<String>) -> Json<Value> {
         song_cover_img,
     )
     .unwrap();
-    Json(img_to_response(img))
+    img_to_response(img)
 }
 
-pub async fn top_5_songs(Path(username): Path<String>) -> Json<Value> {
+#[get("/api/top5songs/<username>", format = "json")]
+pub async fn top_5_songs(username: String) -> Value {
     let spotify_client = spotify::auth().await;
 
     let top_tracks = lfm::fetch_top_5_tracks(&username).await;
@@ -123,22 +125,25 @@ pub async fn top_5_songs(Path(username): Path<String>) -> Json<Value> {
     }
 
     let img = imageprocessing::top_5_songs(meow).unwrap();
-    Json(img_to_response(img))
+    img_to_response(img)
 }
 
-pub async fn genre_evolution(Path(username): Path<String>) -> Json<Value> {
-    let lfm_client = lfm::init_client(&username);
+#[get("/api/genreevolution/<username>", format = "json")]
+pub async fn genre_evolution(username: &str) -> Result<Value, Value> {
+    let lfm_client = lfm::init_client(username);
     let spotify_client = spotify::auth().await;
 
-    let months = calculate_genre_months(lfm_client, spotify_client)
-        .await
-        .unwrap();
+    let months = match calculate_genre_months(lfm_client, spotify_client).await {
+        Ok(v) => v,
+        Err(e) => return Err(json!({"error": e.to_string()})),
+    };
     //let meow = GenreMonths::new();
     let imgs = imageprocessing::genre_evolution(months).unwrap();
-    Json(imgs_to_response(imgs))
+    Ok(imgs_to_response(imgs))
 }
 
-pub async fn final_image(Path((username, minutes)): Path<(String, i64)>) -> Json<Value> {
+#[get("/api/finalimage/<username>/<minutes>", format = "json")]
+pub async fn final_image(username: String, minutes: i64) -> Value {
     println!("{}", username);
     let spotify_client = spotify::auth().await;
 
@@ -170,12 +175,13 @@ pub async fn final_image(Path((username, minutes)): Path<(String, i64)>) -> Json
 
     let img =
         imageprocessing::final_image(minutes, top_track_names, top_artist_names, icon_img).unwrap();
-    Json(img_to_response(img))
+    img_to_response(img)
 }
 
-pub async fn user_processable(Path(username): Path<String>) -> Json<Value> {
+#[get("/api/isuserprocessable/<username>", format = "json")]
+pub async fn user_processable(username: String) -> Value {
     match lfm::user_processable(&username).await {
-        Ok(_) => Json(processable_response(true, "")),
-        Err(e) => Json(processable_response(false, &e.to_string())),
+        Ok(_) => processable_response(true, ""),
+        Err(e) => processable_response(false, &e.to_string()),
     }
 }
